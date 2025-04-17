@@ -48,13 +48,15 @@ def finder(my_uid):
                 print(f"❌ Erreur d'envoi : {e}")
 
 uid1 = input("UID")
-uid2 = input("UID")
+
 send_ip_to_server(uid1)
 
-
+uid2 = input("UID")
 
 ipadress = finder(uid2)
 print(ipadress)
+
+
 
 
 
