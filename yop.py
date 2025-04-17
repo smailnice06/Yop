@@ -77,7 +77,7 @@ client_socket.send(b"Bonjour, client!")
 reponse = ""
 while reponse != "quit":
      reponse = input("Ecrit ton message:")
-     client_socket.send(reponse)
+     client_socket.send(reponse.encode())
      message = client_socket.recv(1024)
      print("Message reçu:", message.decode())
 
