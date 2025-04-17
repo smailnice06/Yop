@@ -53,7 +53,7 @@ send_ip_to_server(uid1)
 
 uid2 = input("UID")
 
-ipadress = finder(uid2)
+ipadress = finder(uid1)
 print(ipadress)
 
 
