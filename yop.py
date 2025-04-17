@@ -62,7 +62,7 @@ print(ipadress)
 
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind(("0.0.0.0", PORT))
+server_socket.bind((ipadress, PORT))
 server_socket.listen(1)
 print("Serveur en attente de connexions...")
 
@@ -73,4 +73,12 @@ message = client_socket.recv(1024)
 print("Message reçu:", message.decode())
 
 client_socket.send(b"Bonjour, client!")
+
+reponse = ""
+while reponse != "quit":
+     reponse = input("Ecrit ton message:")
+     client_socket.send(reponse)
+     message = client_socket.recv(1024)
+     print("Message reçu:", message.decode())
+
 client_socket.close()
