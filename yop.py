@@ -5,7 +5,7 @@ import threading
 
 
 SERVER_URL = "https://flaskserver-1-mtrp.onrender.com"
-PORT = 5001  # Port fixe utilisé pour la connexion socket
+PORT = 25000  # Port fixe utilisé pour la connexion socket
 
 # Récupérer l'IP publique via une API
 def get_public_ip():
