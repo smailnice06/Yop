@@ -128,7 +128,7 @@ while True:
     reponse = input("✉️  Toi : ")
     if reponse == "quit":
         break
-    ciphertext = cle_publique_recue.encrypt(
+    ciphertext = public_key_recu.encrypt(
         reponse.encode(),
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
