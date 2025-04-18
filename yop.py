@@ -1,16 +1,18 @@
+# ========================
+# ======= SERVEUR =======
+# ========================
+
 import socket
 import requests
-import time
 import threading
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 
-
-
 SERVER_URL = "https://flaskserver-1-mtrp.onrender.com"
-PORT = 25000  # Port fixe utilisé pour la connexion socket
+PORT = 25000
+SEP = b'__SEP__'
 
-# Récupérer l'IP publique via une API
+# Fonction pour obtenir l'IP publique
 def get_public_ip():
     try:
         response = requests.get("https://api.ipify.org?format=json")
@@ -19,17 +21,15 @@ def get_public_ip():
         print(f"❌ Erreur IP publique : {e}")
         return None
 
-# Envoi de l'adresse IP publique + port au serveur
+# Envoi de l'adresse IP au serveur
+
 def send_ip_to_server(my_uid):
     last_ip = None
     while True:
         ip = get_public_ip()
         if ip != last_ip:
             last_ip = ip
-            data = {
-                "value1": int(my_uid),
-                "value2": str(ip)
-            }
+            data = {"value1": int(my_uid), "value2": str(ip)}
             try:
                 print("📤 Data envoyée :", data)
                 response = requests.post(f"{SERVER_URL}/submit", json=data)
@@ -38,32 +38,23 @@ def send_ip_to_server(my_uid):
             except Exception as e:
                 print(f"❌ Erreur d'envoi : {e}")
 
+# Récupération de l'IP du correspondant
 def finder(my_uid):
-    
-            data = {
-                "value1": int(my_uid)
-            }
-            try:
-                print("📤 Data envoyée :", data)
-                response = requests.post(f"{SERVER_URL}/getin", json=data)
-                return response.text
-            except Exception as e:
-                print(f"❌ Erreur d'envoi : {e}")
+    try:
+        data = {"value1": int(my_uid)}
+        response = requests.post(f"{SERVER_URL}/getin", json=data)
+        return response.text
+    except Exception as e:
+        print(f"❌ Erreur d'envoi : {e}")
 
-uid1 = input("UID")
-
+# === IDENTIFIANT ===
+uid1 = input("UID : ")
 send_ip_to_server(uid1)
-
-uid2 = input("UID")
-
+uid2 = input("UID ")
 ipadress = finder(uid1)
 print(ipadress)
 
-
-
-
-
-
+# Création du serveur socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(("0.0.0.0", PORT))
 server_socket.listen(1)
@@ -72,71 +63,72 @@ print("Serveur en attente de connexions...")
 client_socket, client_address = server_socket.accept()
 print(f"Connexion établie avec {client_address}")
 
-# Recevoir la clé publique de l'autre utilisateur
-cle_publique_binaire = client_socket.recv(1024)
-
-# Générer une clé privée RSA
-private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048
-)
-
-# Obtenir la clé publique correspondante
+# --- Clés RSA ---
+identity_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 public_key = private_key.public_key()
-
-# Sérialiser la clé publique au format PEM
 public_key_pem = public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
-# Envoyer notre clé publique
-client_socket.send(public_key_pem)
+# Signature de la clé publique
+signature_pubkey = identity_key.sign(
+    public_key_pem,
+    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+    hashes.SHA256()
+)
 
-# Charger la clé publique reçue
+# --- Envoi clé publique + signature ---
+client_socket.send(public_key_pem + SEP + signature_pubkey)
+
+# --- Réception de la clé publique + signature ---
+data = client_socket.recv(2048)
+cle_publique_binaire, signature = data.split(SEP)
 public_key_recu = serialization.load_pem_public_key(cle_publique_binaire)
 
+# Authentification (ici, sans certificat connu - normalement on vérifie avec une clé connue)
+print("✅ Clé publique reçue")
 
-
-
-import threading
-
-# Fonction qui écoute les messages entrants
+# Thread de réception
 def recevoir_messages():
     while True:
         try:
-            message_binaire = client_socket.recv(1024)
+            data = client_socket.recv(2048)
+            ciphertext, signature = data.split(SEP)
             message_dechiffre = private_key.decrypt(
-                message_binaire,
-                padding.OAEP(
-                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                    algorithm=hashes.SHA256(),
-                    label=None
-                )
+                ciphertext,
+                padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
             )
-            print("\n📨 Nouveau message :", message_dechiffre.decode())
+            # Vérification d'intégrité
+            public_key_recu.verify(
+                signature,
+                message_dechiffre,
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256()
+            )
+            print("\n📨 Nouveau message authentifié:", message_dechiffre.decode())
         except Exception as e:
             print(f"\n❌ Erreur de réception : {e}")
             break
 
-# Lancer la réception en thread
-thread_reception = threading.Thread(target=recevoir_messages, daemon=True)
-thread_reception.start()
+threading.Thread(target=recevoir_messages, daemon=True).start()
 
-
+# Envoi des messages
 while True:
     reponse = input("✉️  Toi : ")
     if reponse == "quit":
         break
+    message = reponse.encode()
     ciphertext = public_key_recu.encrypt(
-        reponse.encode(),
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
+        message,
+        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
-    client_socket.send(ciphertext)
-
+    signature = private_key.sign(
+        message,
+        padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+        hashes.SHA256()
+    )
+    client_socket.send(ciphertext + SEP + signature)
 
 client_socket.close()
