@@ -72,8 +72,8 @@ print("Serveur en attente de connexions...")
 client_socket, client_address = server_socket.accept()
 print(f"Connexion établie avec {client_address}")
 
-cle_publique_bianire = client_socket.recv(1024)
-cle_publique = cle_publique_bianire.decode()
+# Recevoir la clé publique de l'autre utilisateur
+cle_publique_binaire = client_socket.recv(1024)
 
 # Générer une clé privée RSA
 private_key = rsa.generate_private_key(
@@ -90,19 +90,19 @@ public_key_pem = public_key.public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
-client_socket.send(public_key_pem.encode())
+# Envoyer notre clé publique
+client_socket.send(public_key_pem)
+
+# Charger la clé publique reçue
+public_key_recu = serialization.load_pem_public_key(cle_publique_binaire)
 
 reponse = ""
 while reponse != "quit":
-    reponse = input("Ecrit ton message:")
-    # Charger la clé publique
-    public_key = serialization.load_pem_public_key(cle_publique)
+    reponse = input("Écris ton message : ")
 
-    # Message à chiffrer
+    # Chiffrer le message avec la clé publique de l'autre
     message = reponse.encode()
-
-    # Chiffrer le message avec la clé publique
-    ciphertext = public_key.encrypt(
+    ciphertext = public_key_recu.encrypt(
         message,
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -111,13 +111,14 @@ while reponse != "quit":
         )
     )
     
-    client_socket.send(ciphertext.encode())
-    message_bianire_chiffre = client_socket.recv(1024)
-    message_chiffre = message_bianire_chiffre.decode()
+    client_socket.send(ciphertext)
 
-    # Déchiffrer le message avec la clé privée
+    # Recevoir le message chiffré de l'autre
+    message_binaire_chiffre = client_socket.recv(1024)
+
+    # Déchiffrer avec notre clé privée
     decrypted_message = private_key.decrypt(
-        message_chiffre,
+        message_binaire_chiffre,
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
@@ -125,6 +126,6 @@ while reponse != "quit":
         )
     )
 
-    print("Message reçu:", message.decode())
+    print("Message reçu :", decrypted_message.decode())
 
 client_socket.close()
