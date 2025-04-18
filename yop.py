@@ -1,7 +1,3 @@
-# ========================
-# ======= SERVEUR =======
-# ========================
-
 import socket
 import requests
 import threading
@@ -40,7 +36,7 @@ def get_friend_ip(username, password, friend_username):
             "friend_username": friend_username
         })
         if response.status_code == 200:
-            return response.json()['ip']
+            return response.json()['ipadress']
         else:
             print("❌ Impossible de récupérer l'IP :", response.text)
             return None
@@ -150,3 +146,4 @@ while True:
     client_socket.send(ciphertext + SEP + signature)
 
 client_socket.close()
+
