@@ -96,36 +96,47 @@ client_socket.send(public_key_pem)
 # Charger la clé publique reçue
 public_key_recu = serialization.load_pem_public_key(cle_publique_binaire)
 
-reponse = ""
-while reponse != "quit":
-    reponse = input("Écris ton message : ")
 
-    # Chiffrer le message avec la clé publique de l'autre
-    message = reponse.encode()
-    ciphertext = public_key_recu.encrypt(
-        message,
+
+
+import threading
+
+# Fonction qui écoute les messages entrants
+def recevoir_messages():
+    while True:
+        try:
+            message_binaire = client_socket.recv(1024)
+            message_dechiffre = private_key.decrypt(
+                message_binaire,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            print("\n📨 Nouveau message :", message_dechiffre.decode())
+        except Exception as e:
+            print(f"\n❌ Erreur de réception : {e}")
+            break
+
+# Lancer la réception en thread
+thread_reception = threading.Thread(target=recevoir_messages, daemon=True)
+thread_reception.start()
+
+
+while True:
+    reponse = input("✉️  Toi : ")
+    if reponse == "quit":
+        break
+    ciphertext = cle_publique_recue.encrypt(
+        reponse.encode(),
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None
         )
     )
-    
     client_socket.send(ciphertext)
 
-    # Recevoir le message chiffré de l'autre
-    message_binaire_chiffre = client_socket.recv(1024)
-
-    # Déchiffrer avec notre clé privée
-    decrypted_message = private_key.decrypt(
-        message_binaire_chiffre,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
-    )
-
-    print("Message reçu :", decrypted_message.decode())
 
 client_socket.close()
