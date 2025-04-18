@@ -2,6 +2,9 @@ import socket
 import requests
 import time
 import threading
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+
 
 
 SERVER_URL = "https://flaskserver-1-mtrp.onrender.com"
@@ -69,16 +72,59 @@ print("Serveur en attente de connexions...")
 client_socket, client_address = server_socket.accept()
 print(f"Connexion établie avec {client_address}")
 
-message = client_socket.recv(1024)
-print("Message reçu:", message.decode())
+cle_publique_bianire = client_socket.recv(1024)
+cle_publique = cle_publique_bianire.decode()
 
-client_socket.send(b"Bonjour, client!")
+# Générer une clé privée RSA
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048
+)
+
+# Obtenir la clé publique correspondante
+public_key = private_key.public_key()
+
+# Sérialiser la clé publique au format PEM
+public_key_pem = public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+)
+
+client_socket.send(public_key_pem.encode())
 
 reponse = ""
 while reponse != "quit":
-     reponse = input("Ecrit ton message:")
-     client_socket.send(reponse.encode())
-     message = client_socket.recv(1024)
-     print("Message reçu:", message.decode())
+    reponse = input("Ecrit ton message:")
+    # Charger la clé publique
+    public_key = serialization.load_pem_public_key(cle_publique)
+
+    # Message à chiffrer
+    message = reponse.encode()
+
+    # Chiffrer le message avec la clé publique
+    ciphertext = public_key.encrypt(
+        message,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    
+    client_socket.send(ciphertext.encode())
+    message_bianire_chiffre = client_socket.recv(1024)
+    message_chiffre = message_bianire_chiffre.decode()
+
+    # Déchiffrer le message avec la clé privée
+    decrypted_message = private_key.decrypt(
+        message_chiffre,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+
+    print("Message reçu:", message.decode())
 
 client_socket.close()
