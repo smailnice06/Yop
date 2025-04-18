@@ -12,7 +12,6 @@ SERVER_URL = "https://flaskserver-1-mtrp.onrender.com"
 PORT = 25000
 SEP = b'__SEP__'
 
-# Fonction pour obtenir l'IP publique
 def get_public_ip():
     try:
         response = requests.get("https://api.ipify.org?format=json")
@@ -20,8 +19,6 @@ def get_public_ip():
     except Exception as e:
         print(f"❌ Erreur IP publique : {e}")
         return None
-
-# Envoi de l'adresse IP au serveur
 
 def send_ip_to_server(my_uid):
     last_ip = None
@@ -38,7 +35,6 @@ def send_ip_to_server(my_uid):
             except Exception as e:
                 print(f"❌ Erreur d'envoi : {e}")
 
-# Récupération de l'IP du correspondant
 def finder(my_uid):
     try:
         data = {"value1": int(my_uid)}
@@ -47,14 +43,12 @@ def finder(my_uid):
     except Exception as e:
         print(f"❌ Erreur d'envoi : {e}")
 
-# === IDENTIFIANT ===
 uid1 = input("UID : ")
 send_ip_to_server(uid1)
 uid2 = input("UID ")
 ipadress = finder(uid1)
 print(ipadress)
 
-# Création du serveur socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(("0.0.0.0", PORT))
 server_socket.listen(1)
@@ -63,7 +57,6 @@ print("Serveur en attente de connexions...")
 client_socket, client_address = server_socket.accept()
 print(f"Connexion établie avec {client_address}")
 
-# --- Clés RSA ---
 identity_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 public_key = private_key.public_key()
@@ -72,25 +65,26 @@ public_key_pem = public_key.public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
-# Signature de la clé publique
 signature_pubkey = identity_key.sign(
     public_key_pem,
     padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
     hashes.SHA256()
 )
 
-# --- Envoi clé publique + signature ---
 client_socket.send(public_key_pem + SEP + signature_pubkey)
 
-# --- Réception de la clé publique + signature ---
 data = client_socket.recv(2048)
 cle_publique_binaire, signature = data.split(SEP)
 public_key_recu = serialization.load_pem_public_key(cle_publique_binaire)
-
-# Authentification (ici, sans certificat connu - normalement on vérifie avec une clé connue)
 print("✅ Clé publique reçue")
 
-# Thread de réception
+# Empreinte de la clé reçue
+digest = hashes.Hash(hashes.SHA256())
+digest.update(cle_publique_binaire)
+fingerprint = digest.finalize().hex()
+fingerprint_formatted = ":".join(fingerprint[i:i+4] for i in range(0, len(fingerprint), 4))
+print("🔒 Empreinte de la clé distante :", fingerprint_formatted)
+
 def recevoir_messages():
     while True:
         try:
@@ -100,7 +94,6 @@ def recevoir_messages():
                 ciphertext,
                 padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
             )
-            # Vérification d'intégrité
             public_key_recu.verify(
                 signature,
                 message_dechiffre,
@@ -114,7 +107,6 @@ def recevoir_messages():
 
 threading.Thread(target=recevoir_messages, daemon=True).start()
 
-# Envoi des messages
 while True:
     reponse = input("✉️  Toi : ")
     if reponse == "quit":
