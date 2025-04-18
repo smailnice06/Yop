@@ -6,7 +6,7 @@ import requests
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 
-SERVER_URL = "http://localhost:5000"
+SERVER_URL = "https://flaskserver-1-mtrp.onrender.com"
 PORT = 25000
 SEP = b'__SEP__'
 
